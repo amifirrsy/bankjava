@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Локальный Веб-Банк Java</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f4f4f9; padding: 20px; color: #333; }
+        .card { background: white; padding: 20px; margin-bottom: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); max-width: 400px; }
+        input, button { display: block; width: 100%; margin: 10px 0; padding: 8px; box-sizing: border-box; }
+        button { background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        .hidden { display: none; }
+        .history { font-size: 13px; background: #eee; padding: 10px; max-height: 150px; overflow-y: auto; }
+    </style>
+</head>
+<body>
+
+    <h1>Банковская система Java (Web)</h1>
+
+    <div id="auth-section" class="card">
+        <h3>Авторизация</h3>
+        <input type="text" id="loginAcc" placeholder="Номер счета (например, KZ111)">
+        <input type="password" id="loginPin" placeholder="PIN-код">
+        <button onclick="login()">Войти</button>
+        <hr>
+        <h3>Регистрация счета</h3>
+        <input type="text" id="regAcc" placeholder="Новый номер (например, KZ333)">
+        <input type="text" id="regOwner" placeholder="Имя владельца">
+        <input type="number" id="regBalance" placeholder="Начальный баланс">
+        <input type="password" id="regPin" placeholder="PIN-код">
+        <button onclick="register()">Создать счет</button>
+    </div>
+
+    <div id="dashboard-section" class="card hidden">
+        <h3 id="welcome-msg">Личный кабинет</h3>
+        <p><strong>Баланс:</strong> <span id="lbl-balance">0</span> тенге</p>
+        <p><strong>Кредитный долг:</strong> <span id="lbl-loan">0</span> тенге</p>
+        
+        <hr>
+        <h4>Операции</h4>
+        <input type="number" id="amt-deposit" placeholder="Сумма пополнения">
+        <button onclick="performAction('deposit')">Пополнить</button>
+
+        <input type="text" id="target-acc" placeholder="Счет получателя">
+        <input type="number" id="amt-transfer" placeholder="Сумма перевода">
+        <button onclick="performAction('transfer')">Перевести</button>
+
+        <input type="number" id="amt-loan" placeholder="Сумма кредита">
+        <button onclick="performAction('loan')">Взять кредит</button>
+
+        <input type="number" id="amt-payloan" placeholder="Сумма погашения">
+        <button onclick="performAction('payLoan')">Погасить кредит</button>
+
+        <hr>
+        <h4>История транзакций</h4>
+        <div id="history-box" class="history"></div>
+
+        <button style="background: #dc3545; margin-top: 20px;" onclick="logout()">Выйти</button>
+    </div>
+
+<script>
+    let currentAccountNum = null;
+
+    async function login() {
+        let res = await fetch('/api/login', {
+            method: 'POST',
+            body: JSON.stringify({accountNumber: document.getElementById('loginAcc').value, pin: document.getElementById('loginPin').value})
+        });
+        let data = await res.json();
+        if (data.success) { currentAccountNum = data.account.accountNumber; updateDashboard(data.account); }
+        else { alert(data.message); }
+    }
+
+    async function register() {
+        let res = await fetch('/api/register', {
+            method: 'POST',
+            body: JSON.stringify({
+                accountNumber: document.getElementById('regAcc').value,
+                ownerName: document.getElementById('regOwner').value,
+                balance: document.getElementById('regBalance').value,
+                pin: document.getElementById('regPin').value
+            })
+        });
+        let data = await res.json();
+        alert(data.message);
+    }
+
+    async function performAction(actionType) {
+        let payload = { accountNumber: currentAccountNum, action: actionType };
+        if (actionType === 'deposit') payload.amount = document.getElementById('amt-deposit').value;
+        if (actionType === 'transfer') { payload.targetAccount = document.getElementById('target-acc').value; payload.amount = document.getElementById('amt-transfer').value; }
+        if (actionType === 'loan') payload.amount = document.getElementById('amt-loan').value;
+        if (actionType === 'payLoan') payload.amount = document.getElementById('amt-payloan').value;
+
+        let res = await fetch('/api/action', { method: 'POST', body: JSON.stringify(payload) });
+        let data = await res.json();
+        if (data.success) { updateDashboard(data.account); alert("Успешно!"); }
+        else { alert(data.message); }
+    }
+
+    function updateDashboard(acc) {
+        document.getElementById('auth-section').classList.add('hidden');
+        document.getElementById('dashboard-section').classList.remove('hidden');
+        document.getElementById('welcome-msg').innerText = `${acc.ownerName} (${acc.accountNumber})`;
+        document.getElementById('lbl-balance').innerText = acc.balance;
+        document.getElementById('lbl-loan').innerText = acc.loanDebt;
+        let histBox = document.getElementById('history-box');
+        histBox.innerHTML = '';
+        acc.transactionHistory.forEach(item => { histBox.innerHTML += `<div>- ${item}</div>`; });
+    }
+
+    function logout() {
+        currentAccountNum = null;
+        document.getElementById('dashboard-section').classList.add('hidden');
+        document.getElementById('auth-section').classList.remove('hidden');
+    }
+</script>
+</body>
+</html>
